@@ -20,10 +20,14 @@ if __name__ == '__main__':
 
     while True:
         dead = filter(lambda x: not bots[x]['process'].is_alive(), bots.keys())
-        if not dead:
+        if dead:
             for name in dead:
                 print("Bot for Channel %s has died" % name)
                 bots.update(name=botStart(bots[name], name))
+        piped = filter(lambda x: not bots[x]['process'].poll(0), bots.keys())
+        if piped:
+            for name in piped:
+                print("There is something stuck in the pipe of %s: %s"% name bots[name]['pipe'].recv())
         try:
             line = sys.stdin.readline()
         except KeyboardInterrupt:
@@ -81,7 +85,7 @@ if __name__ == '__main__':
 
 for name in bots.keys:
     bots.update(name=botStop(bots[name], name))
-
+sys.exit(0)
 
 def botStop(bot, name):
     bot.update('pipe'=None)
