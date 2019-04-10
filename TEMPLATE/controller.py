@@ -3,7 +3,7 @@ from Modules.Required import Database as database
 import multiprocessing
 
 bots = dict()
-TIMEOUT = 120
+TIMEOUT = 60
 
 helpDict = {"add": "Adds another bot to the Database, requires a given name", "exit": "Closes all bots and exits the controller",
     "help": "Displays Commandlist or if command given details on the command",
@@ -19,12 +19,12 @@ if __name__ == '__main__':
         bots.update(name=botStart(bots[name], name))
 
     while True:
-        dead = filter(lambda x: not bots[x]['process'].is_alive(), bots.keys())
+        dead = filter(lambda x: aliveCheck(bots, x), bots.keys())
         if dead:
             for name in dead:
                 print("Bot for Channel %s has died" % name)
                 bots.update(name=botStart(bots[name], name))
-        piped = filter(lambda x: not bots[x]['process'].poll(0), bots.keys())
+        piped = filter(lambda x: pipeCheck(bots, x), bots.keys())
         if piped:
             for name in piped:
                 print("There is something stuck in the pipe of %s: %s"% name bots[name]['pipe'].recv())
@@ -38,25 +38,38 @@ if __name__ == '__main__':
 
         elif 'restart' in line[:7]:
             lsplit = line.split(" ")
-            if len(lsplit)<2 or (not lsplit[1] in bots.keys()):
+            if len(lsplit)<2 or (not lsplit[1] in bots.keys() and not lsplit[1] == 'all'):
                 print("Restart requires a valid bot name to be executed.")
             else:
-                bots.update(lsplit[1]=botStop(bots[lsplit[1]], lsplit[1]))
-                bots.update(lsplit[1]=botStart(bots[lsplit[1]], lsplit[1]))
+                if lsplit[1] == 'all':
+                    for x in bots.keys():
+                        bots.update(lsplit[1]=botStop(bots[x], x))
+                        bots.update(lsplit[1]=botStart(bots[x], x))
+                else:
+                    bots.update(lsplit[1]=botStart(bots[lsplit[1]], lsplit[1]))
+                    bots.update(lsplit[1]=botStop(bots[lsplit[1]], lsplit[1]))
 
         elif 'stop' in line[:5]:
             lsplit = line.split(" ")
-            if len(lsplit)<2 or (not lsplit[1] in bots.keys()):
+            if len(lsplit)<2 or (not lsplit[1] in bots.keys() and not lsplit[1] == 'all'):
                 print("Stop requires a valid bot name to be executed.")
             else:
-                bots.update(lsplit[1]=botStop(bots[lsplit[1]], lsplit[1]))
+                if lsplit[1] == 'all':
+                    for x in bots.keys():
+                        bots.update(lsplit[1]=botStop(bots[x], x))
+                else:
+                    bots.update(lsplit[1]=botStop(bots[lsplit[1]], lsplit[1]))
 
         elif 'start' in line[:6]:
             lsplit = line.split(" ")
-            if len(lsplit)<2 or (not lsplit[1] in bots.keys()):
+            if len(lsplit)<2 or (not lsplit[1] in bots.keys() and not lsplit[1] == 'all'):
                 print("Start requires a valid bot name to be executed.")
             else:
-                bots.update(lsplit[1]=botStart(bots[lsplit[1]], lsplit[1]))
+                if lsplit[1] == 'all':
+                    for x in bots.keys():
+                        bots.update(lsplit[1]=botStart(bots[x], x))
+                else:
+                    bots.update(lsplit[1]=botStart(bots[lsplit[1]], lsplit[1]))
 
         elif 'help' in line[:4]:
             lsplit = line.split(" ")
@@ -70,17 +83,26 @@ if __name__ == '__main__':
 
         elif 'lastChat' in line[:8]:
             lsplit = line.split(" ")
-            if len(lsplit)<2 or (not lsplit[1] in bots.keys()):
+            if len(lsplit)<2 or (not lsplit[1] in bots.keys() and not lsplit[1] == 'all'):
                 print("lastChat requires a valid bot name to be executed.")
             else:
-                bots[lsplit[1]]['pipe'].send("lastChat")
-                if bots[lsplit[1]]['pipe'].poll(TIMEOUT):
-                    message = bots[lsplit[1]]['pipe'].recv()
-                    print("Last Message:" + message)
+                if lsplit[1] == 'all':
+                    for x in bots.keys():
+                        bots[x]['pipe'].send("lastChat")
+                        if bots[x]['pipe'].poll(TIMEOUT):
+                            message = bots[x]['pipe'].recv()
+                            print("Last Message of bot %s:" % bots[x]['name'] + message)
+                        else:
+                            print("%s does not answer right now, consider restarting it." % bots[x]['name'])
                 else:
-                    print("The concerned bot does not answer right now, consider restarting it.")
+                    bots[lsplit[1]]['pipe'].send("lastChat")
+                    if bots[lsplit[1]]['pipe'].poll(TIMEOUT):
+                        message = bots[lsplit[1]]['pipe'].recv()
+                        print("Last Message of bot %s:" % bots[lsplit[1]]['name'] + message)
+                    else:
+                        print("%s does not answer right now, consider restarting it." % bots[lsplit[1]]['name'])
         else:
-            print('"%s" is not a recognised command.')
+            print('"%s" is not a recognised command.' % message)
 
 
 for name in bots.keys:
@@ -103,3 +125,17 @@ def botStart(bot, name):
     bot.update('process'=process)
     process.start()
     return bot
+
+
+def aliveCheck(bots, key):
+    proc = bots[key].get('process', None)
+    if not proc == None:
+        return not proc.is_alive()
+    return False
+
+
+def pipeCheck(bots, key):
+    proc = bots[key].get('pipe', None)
+    if not proc == None:
+        return not proc.poll(0)
+    return False
