@@ -110,11 +110,11 @@ for name in bots.keys:
 sys.exit(0)
 
 def botStop(bot, name):
-    bot.update('pipe'=None)
+    bot.pop('pipe', None)
     bot['process'].terminate()
     if bot['process'].join(TIMEOUT) is None:
         bot['process'].kill()
-    bot.update('process'=None)
+    bot.pop('process', None)
     return bot
 
 
