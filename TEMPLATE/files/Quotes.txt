@@ -1,3 +1,0 @@
-1$testquote 1
-2$testquote 3 [None] [04/12/2018]
-3$"fire!" - someone
