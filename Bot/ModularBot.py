@@ -33,7 +33,7 @@ def parse_ast(filename):
 
 
 def enabled(module):  # MB use this in the giant List of modules?
-    return modules[module]["enabled"]
+    return modules[module]["config"]["enabled"]
 
 
 def oncooldown(module, func):
@@ -65,8 +65,8 @@ def command_limiter(command):  # Allows for cooldowns to be set on commands
 
 def botinstance(channelid, channelname, pipe):
     global modules
-    sys.stderr = open(f"D:\Dropbox\Dropbox\Python\ModularBot\Bot\{channelname}_errorlog.txt", 'w+')
-    sys.stdout = open(f"D:\Dropbox\Dropbox\Python\ModularBot\Bot\{channelname}_log.txt", 'w+')
+    # sys.stderr = open(f"D:\Dropbox\Dropbox\Python\ModularBot\Bot\{channelname}_errorlog.txt", 'w+')
+    # sys.stdout = open(f"D:\Dropbox\Dropbox\Python\ModularBot\Bot\{channelname}_log.txt", 'w+')
     try:
         Database.load_database(channelname)
         config = Database.getonefromdb("Config")
@@ -112,14 +112,14 @@ def botinstance(channelid, channelname, pipe):
             modulesconfig[document["module"]] = {"enabled": document["enabled"], "mandatory": document["mandatory"]}
 
         for module in modules.keys():
-            modules[module]["enabled"] = modulesconfig[modules[module]["name"]]
+            modules[module]["config"] = modulesconfig[modules[module]["name"]]
             modules[module]["functions"] = {}
-            if modules[module]["enabled"] and not modulesconfig[modules[module]["name"]]["mandatory"]:
+            if modules[module]["config"]["enabled"] and not modulesconfig[modules[module]["name"]]["mandatory"]:
                 tree = parse_ast("modules/" + modules[module]["name"] + ".py")
                 for func in top_level_functions(tree.body):
                     modules[module]["functions"][func.name] = {"next use": time.time()}
 
-        modules['other'] = {"name": "Other"}
+        # modules['other'] = {"name": "Other"}
         # Connecting to Twitch IRC by passing credentials and joining a certain channel
         sock = socket.socket()
         sock.connect((HOST, PORT))
@@ -130,11 +130,6 @@ def botinstance(channelid, channelname, pipe):
         sock.send(b"CAP REQ :twitch.tv/commands \r\n")
         # Join the IRC channel of the channel
         sock.send(b"JOIN #" + CHANNEL + b"\r\n")
-
-        global comlimits
-        readbuffer = ""
-        modt = False
-        comlimits = []
 
         # Starting the timer in case of a disconnect
         # keepalivetimer = threading.Timer(310, nopong)
@@ -150,39 +145,45 @@ def botinstance(channelid, channelname, pipe):
         APICalls.load_apicalls(CLIENTID, channelid)
     except Exception as errormsg:
         Errorlog.errorlog(errormsg, "Bot/startup", "Channel:" + channelname)
-        pipe.send(f"Error: {errormsg}")
+        # pipe.send(f"Error: {errormsg}")
 
         # load_tagger()
 
-        if enabled("RU"):
-            Rules.load_rules()
-        if enabled("BSM"):
-            Backseatmessage.load_bsmessage()
-        if enabled("DC"):
-            Deathcounter.load_deaths()
-        if enabled("QU"):
-            Quotes.load_quotes()
-        if enabled("RF"):
-            Raffles.load_raffles(CLIENTID, channelid)
-        if enabled("BT"):
-            BrokenBoner.load_bonertimer()
-        if enabled("RA"):
-            RimworldAutomessage.load_rimworldautomessage(channelid, CLIENTID)
-        if enabled("QS"):
-            Questions.load_questions()
-        if enabled("ML"):
-            Modlog.load_modlog(channelid, headers)
-        if enabled("FG"):
-            FollowerGoals.load_followergoals(FOLDER)
-        if enabled("RML"):
-            RimworldModLinker.load_mod(STEAMAPIKEY)
-        if enabled("SS"):
-            SongSuggestions.load_suggestions()
-        if enabled("CC"):
-            customcommands = CustomCommands.load_commands()
-        if enabled("RP"):
-            responseParse.load_responses()
+    if enabled("RU"):
+        Rules.load_rules()
+    if enabled("BSM"):
+        Backseatmessage.load_bsmessage()
+    if enabled("DC"):
+        Deathcounter.load_deaths()
+    if enabled("QU"):
+        Quotes.load_quotes()
+    if enabled("RF"):
+        Raffles.load_raffles(CLIENTID, channelid)
+    if enabled("BT"):
+        BrokenBoner.load_bonertimer()
+    if enabled("RA"):
+        RimworldAutomessage.load_rimworldautomessage(channelid, CLIENTID)
+    if enabled("QS"):
+        Questions.load_questions()
+    if enabled("ML"):
+        Modlog.load_modlog(channelid, headers)
+    if enabled("FG"):
+        FollowerGoals.load_followergoals(FOLDER)
+    if enabled("RML"):
+        RimworldModLinker.load_mod(STEAMAPIKEY)
+    if enabled("SS"):
+        SongSuggestions.load_suggestions()
+    if enabled("CC"):
+        customcommands = CustomCommands.load_commands()
+    if enabled("RP"):
+        responseParse.load_responses()
 
+    global comlimits
+    readbuffer = ""
+    modt = False
+    comlimits = []
+
+    print("Setup done, entering command loop...")
     # Infinite loop waiting for commands
     while True:
         try:
@@ -192,8 +193,9 @@ def botinstance(channelid, channelname, pipe):
             readbuffer = temp.pop()
 
             for line in temp:
-                # if printraw:
-                #     print(line)
+
+                print(line)  # testing purposes
+
                 # Checks if  message is PING. If so reply pong and extend the timer for a restart
                 if "PING" in line:
                     sock.send(b"PONG\r\n")
@@ -508,26 +510,34 @@ def botinstance(channelid, channelname, pipe):
                             Logger.logger(0000000, '>>Bot', f'Bot ready in channel {CHANNEL.decode()}', False, True, True)
                             modulelist = []
                             for custommodule in modules.keys():
-                                x = modules[custommodule]["name"]
-                                modulelist.append(x)
+                                if modules[custommodule]["config"]["enabled"]:
+                                    x = modules[custommodule]["name"]
+                                    modulelist.append(x)
                             timestamp = Logger.logger(0000000, ">>Bot", "Modules loaded: %s" % ", ".join(modulelist), False, True, True)
 
-                    try:
-                        if pipe.poll():
-                            controllercommand = pipe.recv()
-                            if controllercommand == "lastChat":
-                                pipe.send(timestamp)
-                    except Exception as errormsg:
-                        Errorlog.errorlog(errormsg, "Multiprocessing", "")
+                    # Disabled due to testing purposes.
+                    # try:
+                    #     if pipe.poll():
+                    #         controllercommand = pipe.recv()
+                    #         if controllercommand == "lastChat":
+                    #             pipe.send(timestamp)
+                    # except Exception as errormsg:
+                    #     Errorlog.errorlog(errormsg, "Multiprocessing", "")
 
         except Exception as errormsg:
-            try:
-                Errorlog.errorlog(errormsg, 'Main()', temp)
-            except Exception:
-                Errorlog.errorlog(errormsg, 'Main()', '')
+            # Disabled due to testing purposes.
+            # try:
+            #     Errorlog.errorlog(errormsg, 'Main()', temp)
+            # except Exception:
+            #     Errorlog.errorlog(errormsg, 'Main()', '')
             raise errormsg
 
 
 # todo add cache for follows
 # todo rework bonertimer module
 # todo streamline functions/names
+
+
+# Testing purposes. This file is not meant to be run directly
+if __name__ == '__main__':
+    botinstance(000000, "Louiseyhannah", "none")
